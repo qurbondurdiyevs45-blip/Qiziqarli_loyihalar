@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Lab | Automation Hub</title>
+    <style>
+        :root {
+            --neon-green: #39ff14;
+            --dark-bg: #0a0a0b;
+            --glass-bg: rgba(20, 25, 20, 0.7);
+            --glass-border: rgba(57, 255, 20, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: radial-gradient(circle at center, #1a1a1a 0%, var(--dark-bg) 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            color: var(--neon-green);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+            margin-bottom: 1.5rem;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        label {
+            font-size: 0.9rem;
+            color: var(--neon-green);
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #222;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--neon-green);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--neon-green);
+        }
+
+        .stats-display {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+        }
+
+        .stat-box {
+            text-align: center;
+        }
+
+        .stat-value {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--neon-green);
+        }
+
+        .repo-stream {
+            height: 300px;
+            overflow-y: auto;
+            background: #050505;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            border-left: 2px solid var(--neon-green);
+            padding-left: 8px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .action-btn {
+            background: transparent;
+            color: var(--neon-green);
+            border: 1px solid var(--neon-green);
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: 0.3s;
+            font-weight: bold;
+            margin-top: 1rem;
+        }
+
+        .action-btn:hover {
+            background: var(--neon-green);
+            color: black;
+            box-shadow: 0 0 15px var(--neon-green);
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-green);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="glass-panel">
+            <h1>Creative Automation Lab <span>v1.0</span></h1>
+            <p>Simulate high-velocity code generations and repository orchestration.</p>
+            
+            <div class="control-grid">
+                <div class="control-group">
+                    <label>Daily Repositories (Max 45)</label>
+                    <input type="range" id="repoSlider" min="1" max="45" value="12" oninput="updateStats()">
+                    <label>Files Per Repo (Max 100)</label>
+                    <input type="range" id="fileSlider" min="1" max="100" value="25" oninput="updateStats()">
+                </div>
+
+                <div class="stats-display">
+                    <div class="stat-box">
+                        <span class="stat-value" id="val-repos">12</span>
+                        <span>Repos</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-value" id="val-files">25</span>
+                        <span>Files/Repo</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-value" id="val-total">300</span>
+                        <span>Daily Total</span>
+                    </div>
+                </div>
+            </div>
+
+            <button class="action-btn" onclick="startDeployment()">EXECUTE DEPLOYMENT CYCLE</button>
+        </div>
+
+        <div class="glass-panel">
+            <h2 style="margin-bottom: 1rem; color: var(--neon-green);">Live Deployment Stream</h2>
+            <div id="logStream" class="repo-stream"></div>
+        </div>
+    </div>
+
+    <script>
+        const logStream = document.getElementById('logStream');
+
+        function updateStats() {
+            const repos = document.getElementById('repoSlider').value;
+            const files = document.getElementById('fileSlider').value;
+            document.getElementById('val-repos').innerText = repos;
+            document.getElementById('val-files').innerText = files;
+            document.getElementById('val-total').innerText = repos * files;
+        }
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const now = new Date().toLocaleTimeString();
+            entry.innerHTML = `[${now}] <span style="color: #fff">${message}</span>`;
+            logStream.prepend(entry);
+            
+            if (logStream.children.length > 50) {
+                logStream.removeChild(logStream.lastChild);
+            }
+        }
+
+        let intervalId = null;
+        function startDeployment() {
+            if (intervalId) clearInterval(intervalId);
+            
+            const repos = document.getElementById('repoSlider').value;
+            addLog(`Initializing deployment for ${repos} repositories...`);
+            
+            let count = 0;
+            intervalId = setInterval(() => {
+                if (count >= repos) {
+                    addLog("Deployment Cycle Complete.", "success");
+                    clearInterval(intervalId);
+                    return;
+                }
+                const extensions = ['.js', '.py', '.html', '.css', '.ts'];
+                const ext = extensions[Math.floor(Math.random() * extensions.length)];
+                addLog(`Provisioning repo_cluster_${count + 1} with dynamic ${ext} assets...`);
+                count++;
+            }, 800);
+        }
+
+        // Initial run
+        updateStats();
+        addLog("System ready. Neon Core connected.");
+    </script>
+</body>
+</html>
