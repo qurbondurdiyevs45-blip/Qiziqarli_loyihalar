@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spectral Flux Synthesizer</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --accent: #00f2ff;
+            --panel: rgba(20, 20, 30, 0.85);
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+        }
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            pointer-events: auto;
+            max-width: 300px;
+        }
+        h1 { margin: 0 0 10px 0; font-size: 1.2rem; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
+        p { font-size: 0.85rem; opacity: 0.8; line-height: 1.4; }
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+        button {
+            background: var(--accent);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+        button:active { transform: scale(0.95); }
+        .status { font-family: monospace; color: var(--accent); margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <canvas id="glCanvas"></canvas>
+
+    <div id="ui-overlay">
+        <h1>Spectral Flux</h1>
+        <p>An additive harmonic synthesizer. Move your mouse to traverse frequency space. Click and drag to warp the spectral field.</p>
+        <div class="controls">
+            <button id="startBtn">INITIALIZE AUDIO</button>
+            <div class="status" id="statusDisplay">READY</div>
+        </div>
+    </div>
+
+    <div class="hint">Y-axis: Amplitude | X-axis: Harmonic Distribution</div>
+
+    <script>
+        const canvas = document.getElementById('glCanvas');
+        const ctx = canvas.getContext('2d');
+        let audioCtx, masterGain, oscillator, analyser;
+        let isRunning = false;
+        let mouse = { x: 0, y: 0, down: false };
+
+        // Resize handling
+        window.addEventListener('resize', resize);
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resize();
+
+        // Initialize Web Audio
+        async function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            masterGain = audioCtx.createGain();
+            analyser = audioCtx.createAnalyser();
+            
+            masterGain.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            
+            analyser.fftSize = 256;
+            masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            
+            isRunning = true;
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('statusDisplay').innerText = 'SYNTH ACTIVE';
+            
+            createOscillator();
+            animate();
+        }
+
+        function createOscillator() {
+            oscillator = audioCtx.createOscillator();
+            oscillator.type = 'sine';
+            oscillator.connect(masterGain);
+            oscillator.start();
+        }
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            if (!audioCtx) initAudio();
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            
+            if (isRunning) {
+                // Map Y to gain (volume)
+                const volume = 1 - (e.clientY / window.innerHeight);
+                masterGain.gain.setTargetAtTime(volume * 0.3, audioCtx.currentTime, 0.05);
+                
+                // Map X to frequency base
+                const freq = (e.clientX / window.innerWidth) * 880 + 110;
+                oscillator.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
+            }
+        });
+
+        window.addEventListener('mousedown', () => { mouse.down = true; });
+        window.addEventListener('mouseup', () => { mouse.down = false; });
+
+        const bufferLength = 128;
+        const dataArray = new Uint8Array(bufferLength);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Visual cleanup with trail effect
+            ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!isRunning) return;
+
+            analyser.getByteFrequencyData(dataArray);
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radiusBase = (mouse.y / canvas.height) * 200 + 50;
+
+            ctx.beginPath();
+            ctx.strokeStyle = `hsla(${(mouse.x / canvas.width) * 360}, 100%, 60%, 0.8)`;
+            ctx.lineWidth = mouse.down ? 5 : 2;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const barHeight = dataArray[i];
+                const angle = (i / bufferLength) * Math.PI * 2;
+                const distortion = mouse.down ? Math.sin(Date.now() * 0.01) * 50 : 0;
+                const r = radiusBase + barHeight + distortion;
+                
+                const x = centerX + Math.cos(angle) * r;
+                const y = centerY + Math.sin(angle) * r;
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            
+            ctx.closePath();
+            ctx.stroke();
+
+            // Particles floating towards mouse
+            for (let i = 0; i < 5; i++) {
+                const px = Math.random() * canvas.width;
+                const py = Math.random() * canvas.height;
+                const dist = Math.hypot(px - mouse.x, py - mouse.y);
+                if (dist < 200) {
+                    ctx.fillStyle = `rgba(0, 242, 255, ${1 - dist/200})`;
+                    ctx.fillRect(px, py, 2, 2);
+                }
+            }
+        }
+
+        // Initial background
+        ctx.fillStyle = '#0a0a0f';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    </script>
+</body>
+</html>
