@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Quill | Text Evolution Engine</title>
+    <style>
+        :root {
+            --bg: #0a0b10;
+            --accent: #00f2ff;
+            --panel: #161b22;
+            --text: #e6edf3;
+        }
+        body, html {
+            margin: 0; padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh; overflow: hidden;
+        }
+        #canvas-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        }
+        .ui-overlay {
+            position: relative; z-index: 10; padding: 20px;
+            pointer-events: none;
+        }
+        .controls {
+            background: rgba(22, 27, 34, 0.85);
+            padding: 20px; border-radius: 12px;
+            width: 300px; backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        input, textarea {
+            width: 90%; background: #0d1117;
+            border: 1px solid #30363d; color: var(--text);
+            padding: 10px; margin: 10px 0;
+            border-radius: 4px; font-family: monospace;
+        }
+        .label { font-size: 0.8rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+        .footer { position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <div class="ui-overlay">
+        <div class="controls">
+            <div class="label">Seed Input</div>
+            <textarea id="inputSource" rows="3">QUANTUM_LEAP</textarea>
+            <div class="label">Mutation Rate</div>
+            <input type="range" id="mutationRate" min="0" max="100" value="15">
+            <div class="label">Particle Flow</div>
+            <input type="range" id="flowSpeed" min="1" max="20" value="5">
+            <p style="font-size: 0.8rem">Hover over letters to distort spacetime. Characters evolve based on noise algorithms.</p>
+        </div>
+    </div>
+    <canvas id="mainCanvas"></canvas>
+    <div class="footer">Quantum Quill Engine v1.0.0</div>
+
+    <script>
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const inputSource = document.getElementById('inputSource');
+        const mutationRange = document.getElementById('mutationRate');
+        
+        let width, height, particles = [];
+        const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#!?@%&";
+
+        class Particle {
+            constructor(char, x, y) {
+                this.char = char;
+                this.baseX = x;
+                this.baseY = y;
+                this.x = x;
+                this.y = y;
+                this.size = 24;
+                this.density = (Math.random() * 30) + 1;
+                this.color = '#00f2ff';
+                this.activeChar = char;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.font = `bold ${this.size}px monospace`;
+                ctx.fillText(this.activeChar, this.x, this.y);
+            }
+
+            update(mouse) {
+                // Evolution logic
+                if (Math.random() * 1000 < mutationRange.value) {
+                    this.activeChar = charset[Math.floor(Math.random() * charset.length)];
+                }
+
+                // Physics logic
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                let forceDirectionX = dx / distance;
+                let forceDirectionY = dy / distance;
+                let maxDistance = 150;
+                let force = (maxDistance - distance) / maxDistance;
+                let directionX = forceDirectionX * force * this.density;
+                let directionY = forceDirectionY * force * this.density;
+
+                if (distance < maxDistance) {
+                    this.x -= directionX;
+                    this.y -= directionY;
+                    this.color = '#ff0077';
+                } else {
+                    if (this.x !== this.baseX) {
+                        let dx = this.x - this.baseX;
+                        this.x -= dx / 15;
+                    }
+                    if (this.y !== this.baseY) {
+                        let dy = this.y - this.baseY;
+                        this.y -= dy / 15;
+                    }
+                    this.color = '#00f2ff';
+                }
+            }
+        }
+
+        const mouse = { x: null, y: null };
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.x; mouse.y = e.y;
+        });
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            createText();
+        }
+
+        function createText() {
+            particles = [];
+            const text = inputSource.value || " ";
+            const measured = ctx.measureText(text);
+            const startX = (width / 2) - (text.length * 15 / 2);
+            
+            for (let i = 0; i < text.length; i++) {
+                particles.push(new Particle(text[i], startX + (i * 20), height / 2));
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(10, 11, 16, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+            
+            particles.forEach(p => {
+                p.update(mouse);
+                p.draw();
+            });
+            requestAnimationFrame(animate);
+        }
+
+        inputSource.addEventListener('input', createText);
+        window.addEventListener('resize', init);
+
+        init();
+        animate();
+    </script>
+</body>
+</html>
