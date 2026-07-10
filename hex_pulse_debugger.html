@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HexPulse // Visual Memory Debugger</title>
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --panel: #141418;
+            --border: #2d2d35;
+            --text: #e0e0e0;
+            --accent: #00f2ff;
+            --danger: #ff4d4d;
+            --glow: rgba(0, 242, 255, 0.4);
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 1rem 2rem;
+            background: var(--panel);
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            flex-grow: 1;
+            gap: 1rem;
+            padding: 1.5rem;
+            overflow: hidden;
+        }
+
+        #memory-grid {
+            display: grid;
+            grid-template-columns: repeat(16, 1fr);
+            gap: 4px;
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            overflow-y: auto;
+            align-content: start;
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            border: 1px solid #1f1f24;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            cursor: crosshair;
+            transition: all 0.2s;
+            border-radius: 2px;
+            background: #1a1a20;
+        }
+
+        .cell:hover {
+            background: var(--accent);
+            color: #000;
+            transform: scale(1.1);
+            z-index: 10;
+            box-shadow: 0 0 10px var(--glow);
+        }
+
+        .cell.active {
+            background: var(--accent);
+            color: black;
+            font-weight: bold;
+        }
+
+        .cell.touched {
+            color: var(--accent);
+            border-color: var(--glow);
+        }
+
+        #inspector {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .hud-stat {
+            font-size: 0.8rem;
+            border-left: 3px solid var(--accent);
+            padding-left: 10px;
+            margin-bottom: 10px;
+        }
+
+        .label { color: #888; text-transform: uppercase; font-size: 0.7rem; }
+        .value { color: var(--accent); font-size: 1.1rem; }
+
+        button {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 8px 16px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background: var(--accent);
+            color: #000;
+        }
+
+        .log {
+            background: #000;
+            padding: 10px;
+            font-size: 0.7rem;
+            height: 150px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            color: #0f0;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div style="font-size: 1.5rem; font-weight: bold; letter-spacing: 2px;">
+        HEX<span style="color: var(--accent)">PULSE</span>.v1
+    </div>
+    <div id="status-light" style="color: var(--accent)">○ STANDBY</div>
+</header>
+
+<div class="container">
+    <div id="memory-grid"></div>
+    
+    <aside id="inspector">
+        <div class="hud-stat">
+            <div class="label">Selected Address</div>
+            <div id="addr-display" class="value">0x0000</div>
+        </div>
+        <div class="hud-stat">
+            <div class="label">Byte Value (DEC)</div>
+            <div id="val-display" class="value">0</div>
+        </div>
+        <div class="hud-stat">
+            <div class="label">Parity</div>
+            <div id="parity-display" class="value">EVEN</div>
+        </div>
+
+        <button onclick="resetMemory()">Clear Buffer</button>
+        <button onclick="randomizeMemory()">Inject Noise</button>
+        
+        <div class="label" style="margin-top: 20px;">Event Feed</div>
+        <div id="log" class="log"></div>
+    </aside>
+</div>
+
+<script>
+    const MEMORY_SIZE = 256;
+    const grid = document.getElementById('memory-grid');
+    const logEl = document.getElementById('log');
+    let memory = new Uint8Array(MEMORY_SIZE);
+
+    function init() {
+        grid.innerHTML = '';
+        for (let i = 0; i < MEMORY_SIZE; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.id = `cell-${i}`;
+            cell.textContent = '00';
+            cell.onmouseover = () => updateInspector(i);
+            grid.appendChild(cell);
+        }
+        addLog("System initialized. Memory mapped.");
+    }
+
+    function updateInspector(index) {
+        const val = memory[index];
+        const addr = '0x' + index.toString(16).padStart(4, '0').toUpperCase();
+        
+        document.getElementById('addr-display').textContent = addr;
+        document.getElementById('val-display').textContent = val;
+        document.getElementById('parity-display').textContent = (val % 2 === 0) ? "EVEN" : "ODD";
+        
+        // Update hex text visually on hover
+        document.querySelectorAll('.cell').forEach(c => c.classList.remove('active'));
+        document.getElementById(`cell-${index}`).classList.add('active');
+    }
+
+    function randomizeMemory() {
+        addLog("Injecting entropy into buffer...");
+        for (let i = 0; i < MEMORY_SIZE; i++) {
+            const newVal = Math.floor(Math.random() * 256);
+            memory[i] = newVal;
+            const cell = document.getElementById(`cell-${i}`);
+            cell.textContent = newVal.toString(16).padStart(2, '0').toUpperCase();
+            cell.classList.add('touched');
+        }
+        document.getElementById('status-light').textContent = "● ACTIVE";
+    }
+
+    function resetMemory() {
+        addLog("Zeroing out memory registers...");
+        memory.fill(0);
+        for (let i = 0; i < MEMORY_SIZE; i++) {
+            const cell = document.getElementById(`cell-${i}`);
+            cell.textContent = '00';
+            cell.classList.remove('touched');
+        }
+        document.getElementById('status-light').textContent = "○ STANDBY";
+    }
+
+    function addLog(msg) {
+        const time = new Date().toLocaleTimeString().split(' ')[0];
+        logEl.innerHTML = `[${time}] ${msg}<br>` + logEl.innerHTML;
+    }
+
+    // Simulated background "noise" logic
+    setInterval(() => {
+        if (Math.random() > 0.92) {
+            const idx = Math.floor(Math.random() * MEMORY_SIZE);
+            const drift = (Math.random() > 0.5 ? 1 : -1);
+            memory[idx] = Math.max(0, Math.min(255, memory[idx] + drift));
+            const cell = document.getElementById(`cell-${idx}`);
+            cell.textContent = memory[idx].toString(16).padStart(2, '0').toUpperCase();
+            cell.style.borderColor = 'var(--accent)';
+            setTimeout(() => cell.style.borderColor = '', 500);
+        }
+    }, 1000);
+
+    init();
+</script>
+</body>
+</html>
