@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinetic Cipher Fountain</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --accent: #00ffcc;
+            --text: #e0e0ff;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: 'Courier New', Courier, monospace;
+        }
+        canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .panel {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--accent);
+            padding: 15px;
+            color: var(--accent);
+            pointer-events: auto;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+        }
+        input {
+            background: #1a1a2e;
+            border: 1px solid #444;
+            color: var(--text);
+            padding: 5px;
+            width: 200px;
+            outline: none;
+        }
+        input:focus { border-color: var(--accent); }
+        .desc {
+            font-size: 12px;
+            margin-bottom: 5px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div class="panel">
+            <div class="desc">Enter seed to influence the stream</div>
+            <input type="text" id="seedInput" placeholder="Type code or secrets..." value="GENERATE">
+            <div class="desc" style="margin-top: 10px">Click and drag to apply force.</div>
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const seedInput = document.getElementById('seedInput');
+
+        let width, height;
+        let particles = [];
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#!@&*".split("");
+
+        const mouse = { x: -1000, y: -1000, active: false };
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resize);
+        window.addEventListener('mousedown', () => mouse.active = true);
+        window.addEventListener('mouseup', () => mouse.active = false);
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * width;
+                this.y = height + 50;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = -Math.random() * 15 - 5;
+                this.gravity = 0.15;
+                this.char = chars[Math.floor(Math.random() * chars.length)];
+                this.life = 1.0;
+                this.decay = Math.random() * 0.01 + 0.005;
+                this.size = Math.random() * 14 + 10;
+            }
+
+            update() {
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+
+                // Interaction with mouse force
+                if (mouse.active) {
+                    const dx = this.x - mouse.x;
+                    const dy = this.y - mouse.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 150) {
+                        this.vx += dx / 20;
+                        this.vy += dy / 20;
+                    }
+                }
+
+                if (this.life <= 0 || this.y > height + 100) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                const alpha = this.life;
+                const color = seedInput.value.length > 0 ? 
+                    `hsla(${(this.x / width) * 360}, 80%, 60%, ${alpha})` : 
+                    `rgba(0, 255, 204, ${alpha})`;
+                
+                ctx.fillStyle = color;
+                ctx.font = `${this.size}px monospace`;
+                ctx.fillText(this.char, this.x, this.y);
+            }
+        }
+
+        function init() {
+            resize();
+            particles = Array.from({ length: 150 }, () => new Particle());
+            animate();
+        }
+
+        function animate() {
+            // Trail effect
+            ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Dynamically change particles based on seed input
+            const seed = seedInput.value || "#";
+            
+            particles.forEach(p => {
+                p.update();
+                // Occasionally swap character to seed characters
+                if (Math.random() > 0.98) {
+                    p.char = seed[Math.floor(Math.random() * seed.length)];
+                }
+                p.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        init();
+    </script>
+</body>
+</html>
