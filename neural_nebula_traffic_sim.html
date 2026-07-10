@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Nebula: Traffic Flow Sim</title>
+    <style>
+        :root {
+            --bg: #0a0a12;
+            --accent: #00f2ff;
+            --panel: rgba(20, 20, 35, 0.8);
+        }
+        body, html {
+            margin: 0; padding: 0; overflow: hidden;
+            background: var(--bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+        }
+        canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 20px; left: 20px;
+            padding: 20px;
+            background: var(--panel);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            pointer-events: none;
+            max-width: 280px;
+        }
+        h1 {
+            margin: 0 0 10px 0; font-size: 1.2rem; 
+            text-transform: uppercase; letter-spacing: 2px; color: var(--accent);
+        }
+        .stat { margin: 5px 0; font-size: 0.9rem; opacity: 0.8; }
+        .instructions { font-size: 0.75rem; color: #888; margin-top: 15px; }
+        .highlight { color: var(--accent); font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h1>Neural Nebula</h1>
+        <div class="stat">Active Nodes: <span id="nodeCount" class="highlight">0</span></div>
+        <div class="stat">Global Flux: <span id="fluxRate" class="highlight">0</span> ops</div>
+        <div class="instructions">
+            <b>Click/Drag</b> to spawn graviton nodes.<br>
+            <b>Space</b> to clear the field.<br>
+            <b>Arrows</b> to manipulate flow intensity.
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        document.body.appendChild(canvas);
+
+        let width, height;
+        let particles = [];
+        let attractors = [];
+        let fluxPower = 1.0;
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.life = Math.random() * 100 + 100;
+                this.color = `hsla(${180 + Math.random() * 60}, 100%, 70%, 0.6)`;
+            }
+            update() {
+                attractors.forEach(a => {
+                    const dx = a.x - this.x;
+                    const dy = a.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 300) {
+                        const force = (300 - dist) / 1500 * fluxPower;
+                        this.vx += (dx / dist) * force;
+                        this.vy += (dy / dist) * force;
+                    }
+                });
+
+                this.vx *= 0.98; // Friction
+                this.vy *= 0.98;
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.2;
+
+                if (this.x < 0 || this.x > width || this.y < 0 || this.y > height || this.life <= 0) {
+                    this.reset();
+                }
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, 1.5, 1.5);
+            }
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            initParticles();
+        }
+
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < 800; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            // Trail effect
+            ctx.fillStyle = 'rgba(10, 10, 18, 0.1)';
+            ctx.fillRect(0, 0, width, height);
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            attractors.forEach(a => {
+                ctx.beginPath();
+                ctx.arc(a.x, a.y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = 'white';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = 'cyan';
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            });
+
+            document.getElementById('nodeCount').innerText = attractors.length;
+            document.getElementById('fluxRate').innerText = (fluxPower * 10).toFixed(1);
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('mousedown', (e) => {
+            attractors.push({ x: e.clientX, y: e.clientY });
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') attractors = [];
+            if (e.code === 'ArrowUp') fluxPower += 0.2;
+            if (e.code === 'ArrowDown') fluxPower = Math.max(0.1, fluxPower - 0.2);
+        });
+
+        window.addEventListener('resize', resize);
+        resize();
+        animate();
+    </script>
+</body>
+</html>
